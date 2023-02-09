@@ -5,7 +5,7 @@ from utils.models import Av_CNN3D_model, Av_CNN_GCN_model#, Av_CNN_GCN_trans_mod
 
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
-def inference(X_batch,Y_batch,NX_batch, config):
+def inference(X_batch, Y_batch, NX_batch, config, device):
     global processed_batches
 
     model.eval()
@@ -15,7 +15,8 @@ def inference(X_batch,Y_batch,NX_batch, config):
     with torch.no_grad():
 
         processed_batches = processed_batches + 1
-        X_batch, Y_batch, NX_batch = X_batch.cuda(), Y_batch.cuda(), NX_batch.cuda()
+        #X_batch, Y_batch, NX_batch = X_batch.cuda(), Y_batch.cuda(), NX_batch.cuda()
+        X_batch, Y_batch, NX_batch = X_batch.to(device), Y_batch.to(device), NX_batch.to(device)
 
         output = model.forward(X_batch, NX_batch)
         # if len(output.shape) == 3:
@@ -33,7 +34,19 @@ def inference(X_batch,Y_batch,NX_batch, config):
 if __name__ == '__main__':
     config = Config()
     model_name = config.model_name
-    use_cuda = torch.cuda.is_available()
+    #use_cuda = torch.cuda.is_available() and torch.backends.cuda.is_built()
+    use_cuda = False
+    use_mps = False
+
+    if not torch.backends.mps.is_available():
+        if not torch.backends.mps.is_built():
+            print("MPS not available. PyTorch install was not built with MPS enabled.")
+        else:
+            print("MPS not available. MacOS version is not 12.3+ "
+                "and/or you do not have an MPS-enabled device on this machine.")
+    else:
+        print("MPS is available. PyTorch install was built with MPS enabled.")
+        use_mps = True
 
     # path-----------------------------------------------------------------------------------
     if not os.path.exists(config.backupDir):
@@ -41,11 +54,15 @@ if __name__ == '__main__':
 
     # GPU-----------------------------------------------------------------------------------
     kwargs = {'num_workers': config.num_workers, 'pin_memory': True} if use_cuda else {}
-    device = torch.device("cuda:%s" % str(config.gpus[0]) if use_cuda else "cpu")
+    device = torch.device("cpu")
     if use_cuda:
+        device = torch.device("cuda:%s" % str(config.gpus[0]) )
         torch.cuda.set_device(config.gpus[0])
-        print("GPU is available!")
+        print("CUDA GPU is available!")
+    elif use_mps:
+        device = torch.device("mps")
     else:
+        device = torch.device("cpu")
         print("GPU is not available!!!")
 
     # Load config params-----------------------------------------------------------------------
@@ -56,7 +73,8 @@ if __name__ == '__main__':
         model = Av_CNN_GCN_model(cnnOFeat_len=10, gcnOFeat_len=config.Num_classes,
                                  gcnNumGaussian=6, gaussian_hidden_feat=3, number_neighbors=2, droupout_rate=0.5)
 
-    model = model.cuda()
+    #model = model.cuda()
+    model.to(device)
     # weights-----------------------------------------------------------------------------------
     if config.weightFile != 'none':
         model.load_weights(config.weightFile)
@@ -79,7 +97,7 @@ if __name__ == '__main__':
 
             patch_cnt += config.num_nodes
 
-            inference(X_batch,Y_batch,NX_batch, config)
+            inference(X_batch, Y_batch, NX_batch, config, device)
 
     print('Done!')
 

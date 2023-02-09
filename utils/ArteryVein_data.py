@@ -45,7 +45,7 @@ def load_patch_label_npy(caseDir, normalization='gnormalization'):
   N_inds = np.load( N_inds_file ).item()  # the graph was a dictionary, saved with numpy.save
 
   patches = np.asarray(patches)
-  if normalization is 'gnormalization':
+  if normalization == 'gnormalization':
     mean, std = np.mean(patches), np.std(patches)
   else:
     mean, std = np.mean(patches, axis=(1, 2, 3), keepdims=True), np.std(patches, axis=(1, 2, 3), keepdims=True)
